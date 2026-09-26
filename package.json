@@ -1,0 +1,25 @@
+{
+  "name": "steam-player-tracker",
+  "version": "1.0.0",
+  "description": "Tracks concurrent players of top 100 games on Steam and stores the data in a MySQL database.",
+  "type": "module",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "db:init": "node src/initDb.js",
+    "collect:once": "node src/collectOnce.js",
+    "admin:hash": "node src/generateAdminPasswordHash.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "mysql2": "^3.24.3",
+    "node-cron": "^4.6.0",
+    "pg": "^8.23.0"
+  }
+}
