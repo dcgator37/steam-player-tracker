@@ -4,6 +4,8 @@ import { collectProfile } from "./profileCollector.js";
 import { getFriendList } from "./steam.js";
 import { backfillPlaytimeAvailability } from "./profileMaintenance.js";
 import { requireAdmin, requireTrustedOrigin } from "./adminAuth.js";
+import { refreshDashboardStatistics } from "./dashboardStatistics.js";
+import { refreshProfileSpotlights } from "./profileStatistics.js";
 
 const router = express.Router();
 
@@ -54,10 +56,40 @@ router.post("/:steamid/collect", requireAdmin, requireTrustedOrigin, async (req,
           steamid
         );
 
+        /*
+          refresh the caches dashboard row. Need to change this when updating all 35k
+          profiles or use a different endpoint
+        */
+
+          let dashboardStatistics = null;
+          let profileSpotlights = null;
+          let dashboardStatisticsUpdated = false;
+
+          try {
+            //dashboardStatistics  = await refreshDashboardStatistics();
+            //dashboardStatisticsUpdated = true;
+            [
+              dashboardStatistics,
+              profileSpotlights
+            ] = await Promise.all([
+              refreshDashboardStatistics(),
+              refreshProfileSpotlights()
+            ]);
+
+            dashboardStatisticsUpdated = true;
+
+
+          } catch (error) {
+            console.error("profile collected successfully but dashboard stats not refreshed");
+          }
+
 
       res.json({
         success: true,
-        result
+        steamid,
+        result,
+        dashboardStatisticsUpdated,
+        dashboardStatistics
       });
 
     } catch (error) {

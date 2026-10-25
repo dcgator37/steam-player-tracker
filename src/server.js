@@ -9,7 +9,9 @@ import profileRoutes from "./profileRoutes.js";
 import friendDiscoveryRoutes from "./friendDiscoveryRoutes.js";
 import profileQueueRoutes from "./profileQueueRoutes.js";
 import adminRoutes from "./adminRoutes.js";
+import analysisRoutes from "./analysisRoutes.js";
 import { requireAdmin } from "./adminAuth.js";
+import gameTrendRoutes from "./gameTrendRoutes.js";
 
 const app = express();
 
@@ -30,6 +32,8 @@ app.use("/api/admin", adminRoutes);
 app.use("/api/profile-queue", requireAdmin, profileQueueRoutes);
 app.use("/api/discovery", requireAdmin, friendDiscoveryRoutes);
 app.use("/api/profiles", profileRoutes);
+app.use("/api/analysis", analysisRoutes);
+app.use("/api/game-trends", gameTrendRoutes);
 
 
 /*
@@ -307,16 +311,76 @@ app.get(
   }
 );
 
+app.get("/api/profile-stats",
+  async (req, res) => {
+    try {
+      const result = await pool.query(
+        `
+          select *
+          from steam_profile_statistics
+        `
+      );
+
+      res.json(result.rows);
+    } catch (error) {
+
+    }
+  }
+);
+
+app.get("/api/profile-spot-stats",
+  async (req, res) => {
+    try {
+      const result = await pool.query(
+        `
+          select *
+          from profile_spotlight_statistics
+        `
+      );
+
+      res.json(result.rows);
+    } catch (error) {
+
+    }
+  }
+);
+
  app.get(
   "/api/dashboard-summary",
 
   async (req, res) => {
 
-    const client = await pool.connect();
+    //const client = await pool.connect();
 
     try {
+      const result = await pool.query(
+        `
+          SELECT
 
-      await client.query("BEGIN");
+            profiles_analyzed,
+            average_library_size,
+            owned_games,
+            unplayed_games,
+            generated_at
+
+          FROM dashboard_statistics
+
+          WHERE id = 1
+        `);
+
+      if (
+        result.rows.length === 0
+      ) {
+
+        return res
+          .status(404)
+          .json({
+            error:
+              "Dashboard statistics have not been generated."
+          });
+      }
+
+      /* await client.query("BEGIN");
       await client.query(
         `
           SET LOCAL
@@ -324,7 +388,7 @@ app.get(
         `);
 
       const result =
-        await pool.query(
+        await client.query(
           `
             SELECT
 
@@ -377,14 +441,14 @@ CROSS JOIN
           `
         );
 
-        await client.query("COMMIT");
+        await client.query("COMMIT"); */
 
 
       const row =
         result.rows[0];
 
 
-      const profilesAnalyzed =
+       const profilesAnalyzed =
         Number(
           row.profiles_analyzed
         );
@@ -413,7 +477,7 @@ CROSS JOIN
             )
           : 0;
 
-      const avgLibrarySize = Number(row.avg_lib_size).toFixed(1);
+      const avgLibrarySize = Number(row.average_library_size).toFixed(1);
 
         /* ownedGames > 0
           ? Number(
@@ -439,28 +503,28 @@ CROSS JOIN
         avgLibrarySize,
 
         generatedAt:
-          new Date().toISOString()
+          row.generated_at
       });
 
 
     } catch (error) {
 
-      try {
+     /*  try {
         await client.query("ROLLBACK");
       } catch {
 
-      }
+      } */
 
       console.error(
         "Dashboard summary failed:",
         error
       );
 
-      if (error.code === "57014") {
+    /*   if (error.code === "57014") {
         return res.status(503).json({
           error: "dashboard statistics query timed out"
         });
-      }
+      } */
 
 
       res.status(500).json({
@@ -471,8 +535,9 @@ CROSS JOIN
         message:
           error.message
       });
-    } finally {
+    /* } finally {
       client.release();
+    } */
     }
   }
 );
@@ -1030,7 +1095,7 @@ app.get("/api/profile_queue", async (req, res) => {
   }
 });
 
-app.get("/api/profiles", async (req, res) => {
+app.get("/api/profiles", requireAdmin, async (req, res) => {
   try {
 
     const result = await pool.query(
@@ -1066,7 +1131,7 @@ app.get("/api/profiles", async (req, res) => {
 
         WHERE status = 'failed' */
 
-app.get("/api/reset_failed", async (req, res) => {
+app.get("/api/reset_failed", requireAdmin, async (req, res) => {
   try {
 
     const result = await pool.query(

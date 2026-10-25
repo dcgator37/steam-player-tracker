@@ -4,6 +4,8 @@ import { config } from "./config.js";
 import {
   collectProfile
 } from "./profileCollector.js";
+import { refreshDashboardStatistics } from "./dashboardStatistics.js";
+import { refreshProfileSpotlights } from "./profileStatistics.js";
 
 
 function sleep(milliseconds) {
@@ -766,9 +768,29 @@ export async function processProfileQueue(
       ).length
   };
 
+  let dashboardStatistics = null;
+
+  if (results.length > 0) {
+    try {
+      dashboardStatistics = await refreshDashboardStatistics();
+      console.log("Dashboard statistics refreshed");
+    } catch (error) {
+      console.error("Could not refresh dashboard stats",error);
+    }
+  }
+
+  let profileSpotlights = null;
+
+  try {
+    profileSpotlights = await refreshProfileSpotlights();
+  } catch (error) {
+    console.error("Could not refresh profile spotlights", error);
+  }
+
 
   return {
     summary,
+    dashboardStatistics,
     results
   };
 }

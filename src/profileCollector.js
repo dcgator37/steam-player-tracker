@@ -4,6 +4,7 @@ import {
     getPlayerSummary,
     getOwnedGames
 } from './steam.js';
+import { refreshProfileSpotlights, refreshProfileStatistics } from './profileStatistics.js';
 
 export async function collectProfile(steamid) {
   console.log(`Collecting Steam profile ${steamid}...`);
@@ -97,6 +98,9 @@ export async function collectProfile(steamid) {
     games,
     playtimeStatus
   );
+
+  await refreshProfileStatistics(steamid);
+  await refreshProfileSpotlights(steamid);
 
     /*
    * IMPORTANT:

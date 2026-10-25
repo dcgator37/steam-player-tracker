@@ -1,3 +1,105 @@
+CREATE TABLE IF NOT EXISTS steam_profile_statistics (
+
+    steamid TEXT PRIMARY KEY,
+
+    games_owned INTEGER
+        NOT NULL DEFAULT 0,
+
+    total_playtime_minutes BIGINT
+        NOT NULL DEFAULT 0,
+
+    unplayed_games INTEGER
+        NOT NULL DEFAULT 0,
+
+    unplayed_percentage NUMERIC(6, 2)
+        NOT NULL DEFAULT 0,
+
+    generated_at TIMESTAMPTZ
+        NOT NULL DEFAULT NOW(),
+
+    CONSTRAINT fk_profile_statistics_profile
+        FOREIGN KEY (steamid)
+        REFERENCES steam_profiles(steamid)
+        ON DELETE CASCADE
+);
+
+
+CREATE INDEX IF NOT EXISTS
+idx_profile_statistics_games_owned
+
+ON steam_profile_statistics(
+    games_owned DESC
+);
+
+
+CREATE INDEX IF NOT EXISTS
+idx_profile_statistics_total_playtime
+
+ON steam_profile_statistics(
+    total_playtime_minutes DESC
+);
+
+
+CREATE INDEX IF NOT EXISTS
+idx_profile_statistics_unplayed
+
+ON steam_profile_statistics(
+    unplayed_percentage DESC,
+    games_owned DESC
+);
+
+CREATE TABLE IF NOT EXISTS profile_spotlight_statistics (
+
+    id SMALLINT PRIMARY KEY,
+
+    largest_library_steamid TEXT,
+
+    most_playtime_steamid TEXT,
+
+    highest_unplayed_steamid TEXT,
+
+    generated_at TIMESTAMPTZ
+        NOT NULL DEFAULT NOW(),
+
+    CONSTRAINT chk_profile_spotlight_singleton
+        CHECK (id = 1),
+
+    CONSTRAINT fk_spotlight_largest_library
+        FOREIGN KEY (largest_library_steamid)
+        REFERENCES steam_profiles(steamid)
+        ON DELETE SET NULL,
+
+    CONSTRAINT fk_spotlight_most_playtime
+        FOREIGN KEY (most_playtime_steamid)
+        REFERENCES steam_profiles(steamid)
+        ON DELETE SET NULL,
+
+    CONSTRAINT fk_spotlight_highest_unplayed
+        FOREIGN KEY (highest_unplayed_steamid)
+        REFERENCES steam_profiles(steamid)
+        ON DELETE SET NULL
+);
+
+
+/* INSERT INTO profile_spotlight_statistics (
+    id,
+    largest_library_steamid,
+    most_playtime_steamid,
+    highest_unplayed_steamid,
+    generated_at
+)
+
+VALUES (
+    1,
+    NULL,
+    NULL,
+    NULL,
+    NOW()
+)
+
+ON CONFLICT (id)
+DO NOTHING; */
+
 CREATE TABLE IF NOT EXISTS admin_sessions (
     token_hash TEXT PRIMARY KEY,
 
@@ -71,6 +173,13 @@ ON player_counts(appid);
 
 CREATE INDEX IF NOT EXISTS idx_player_counts_ranking
 ON player_counts(ranking);
+
+CREATE INDEX IF NOT EXISTS
+idx_player_counts_appid_snapshot
+ON player_counts(
+    appid,
+    snapshot_id
+);
 
 
 CREATE TABLE IF NOT EXISTS steam_profiles (
@@ -341,6 +450,56 @@ ON steam_profile_queue (
     next_attempt_at,
     discovered_at
 );
+
+CREATE TABLE IF NOT EXISTS dashboard_statistics (
+    id SMALLINT PRIMARY KEY,
+
+    profiles_analyzed BIGINT NOT NULL DEFAULT 0,
+
+    owned_games BIGINT NOT NULL DEFAULT 0,
+
+    unplayed_games BIGINT NOT NULL DEFAULT 0,
+
+    average_library_size NUMERIC NOT NULL DEFAULT 0,
+
+    generated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+    CONSTRAINT chk_dashboard_statistics_singleton
+        CHECK (id = 1)
+);
+
+CREATE INDEX IF NOT EXISTS
+idx_steam_profiles_largest_usable_library
+
+ON steam_profiles(
+    reported_game_count DESC
+)
+
+WHERE
+    games_visible = TRUE
+    AND playtime_available = TRUE;
+
+
+/* INSERT INTO dashboard_statistics (
+    id,
+    profiles_analyzed,
+    owned_games,
+    unplayed_games,
+    average_library_size,
+    generated_at
+)
+VALUES (
+    1,
+    0,
+    0,
+    0,
+    0,
+    NOW()
+)
+ON CONFLICT (id)
+DO NOTHING; */
+
+
 
 /* CREATE DATABASE IF NOT EXISTS steam_tracker;
 USE steam_tracker; */
