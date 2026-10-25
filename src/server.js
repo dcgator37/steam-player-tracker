@@ -15,6 +15,10 @@ import gameTrendRoutes from "./gameTrendRoutes.js";
 
 const app = express();
 
+app.set(
+  "trust proxy",
+  1
+);
 
 app.use(
   cors({
@@ -1188,7 +1192,7 @@ async function start() {
   
   
 
-  app.listen(config.port, () => {
+  app.listen(config.port, "0.0.0.0", () => {
     console.log(
       `Steam Tracker API listening on port ${config.port}`
     );
