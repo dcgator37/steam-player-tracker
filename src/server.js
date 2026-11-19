@@ -615,7 +615,7 @@ app.get("/api/history", async (req, res) => {
   daily top 100 aggregate history
   one snapshot per day, closest to the requested time
 
-  /ap/history/daily?days=30&time=20:00
+  /api/history/daily?days=30&time=20:00
 */
 
 app.get("/api/history/daily", async (req, res) => {
@@ -624,6 +624,12 @@ app.get("/api/history/daily", async (req, res) => {
   const time = String(req.query.time || "20:00");
 
   const daysParam = String(req.query.days || "30").toLowerCase();
+
+  const weekday =
+        String(
+          req.query.weekday ??
+          "all"
+        );
 
   //eastern time
   const timezone = "America/New_York";
@@ -639,6 +645,38 @@ app.get("/api/history/daily", async (req, res) => {
         "Invalid time. Use HH:MM format."
       });
   }
+
+  /*
+       * PostgreSQL:
+       * 0 Sunday
+       * 1 Monday
+       * ...
+       * 6 Saturday
+       */
+const validWeekdays = [
+  "all",
+  "0",
+  "1",
+  "2",
+  "3",
+  "4",
+  "5",
+  "6"
+];
+
+if (
+  !validWeekdays.includes(
+    weekday
+  )
+) {
+  return res
+    .status(400)
+    .json({
+      error:
+        "weekday must be all or 0 through 6."
+    });
+}
+
 
   const allDays = daysParam === "all";
 
@@ -666,15 +704,204 @@ app.get("/api/history/daily", async (req, res) => {
   }
 
   try {
+
+  /*
+          const result =
+        await pool.query(
+          `
+            WITH bounds AS (
+
+              SELECT
+
+                CASE
+
+                  WHEN $1::text = 'all'
+
+                  THEN
+                    (
+                      SELECT
+                        MIN(sampled_at)
+                        AT TIME ZONE $4
+
+                      FROM snapshots
+                    )::date
+
+                  ELSE
+
+                    (
+                      NOW()
+                      AT TIME ZONE $4
+                    )::date
+
+                    -
+
+                    (
+                      ($1::integer - 1)
+                      *
+                      INTERVAL '1 day'
+                    )
+
+                END
+                  AS start_date,
+
+
+                (
+                  NOW()
+                  AT TIME ZONE $4
+                )::date
+                  AS end_date
+            ),
+
+
+            matching_days AS (
+
+              SELECT
+
+                day::date
+                  AS local_date
+
+              FROM bounds
+
+              CROSS JOIN LATERAL
+
+                generate_series(
+
+                  start_date,
+                  end_date,
+                  INTERVAL '1 day'
+
+                ) day
+
+
+              WHERE
+
+                EXTRACT(
+                  DOW FROM day
+                )::integer = $3
+            ),
+
+
+            targets AS (
+
+              SELECT
+
+                local_date,
+
+                (
+                  (
+                    local_date +
+                    $2::time
+                  )
+
+                  AT TIME ZONE $4
+                )
+                  AS target_timestamp
+
+              FROM matching_days
+            )
+
+
+            SELECT
+
+              t.local_date,
+
+              t.target_timestamp,
+
+              s.sampled_at,
+
+              s.number_of_games,
+
+              s.total_concurrent_players
+
+
+            FROM targets t
+
+
+            LEFT JOIN LATERAL (
+
+              SELECT
+
+                id,
+                sampled_at,
+                number_of_games,
+                total_concurrent_players
+
+              FROM snapshots
+
+
+              WHERE
+
+                sampled_at >=
+                  t.target_timestamp
+                  -
+                  INTERVAL '10 minutes'
+
+                AND
+
+                sampled_at <=
+                  t.target_timestamp
+                  +
+                  INTERVAL '10 minutes'
+
+
+              ORDER BY
+
+                ABS(
+
+                  EXTRACT(
+
+                    EPOCH FROM
+
+                    (
+                      sampled_at
+                      -
+                      t.target_timestamp
+                    )
+                  )
+                )
+
+
+              LIMIT 1
+
+            ) s
+              ON TRUE
+
+
+            ORDER BY
+              t.local_date ASC
+          `,
+          [
+            daysParam,
+            time,
+            weekday,
+            timezone
+          ]
+        );
+      */
+
+        const weekdayNames = [
+
+        "Sunday",
+        "Monday",
+        "Tuesday",
+        "Wednesday",
+        "Thursday",
+        "Friday",
+        "Saturday"
+
+      ];
+
+    
     const result = await pool.query(
       `
         WITH bounds as (
           select
             case
-              /*
-                   * For "all", start on the
+              
+                   /* For "all", start on the
                    * first date in the dataset.
                    */
+                   
                   WHEN $1::boolean THEN
 
                     COALESCE(
@@ -693,9 +920,10 @@ app.get("/api/history/daily", async (req, res) => {
                     )
 
 
-                  /*
-                   * Otherwise go back N days.
+                  
+                   /* Otherwise go back N days.
                    */
+                   
                   ELSE
 
                     timezone(
@@ -742,6 +970,11 @@ app.get("/api/history/daily", async (req, res) => {
                   INTERVAL '1 day'
 
                 ) AS generated_day
+
+                WHERE
+                $5::text = 'all'
+                OR
+                EXTRACT(DOW FROM generated_day)::integer = $5::integer
             )
 
 
@@ -761,15 +994,16 @@ app.get("/api/history/daily", async (req, res) => {
             FROM calendar_days d
 
 
-            /*
-             * Convert the user's chosen
+            
+             /* Convert the user's chosen
              * Eastern clock time into the
              * correct UTC instant for each
              * individual date.
              *
              * This automatically handles
              * daylight saving time.
-             */
+             */  
+             
             CROSS JOIN LATERAL (
 
               SELECT
@@ -787,14 +1021,15 @@ app.get("/api/history/daily", async (req, res) => {
             ) target
 
 
-            /*
-             * Find the actual stored snapshot
+            
+             /* Find the actual stored snapshot
              * nearest that requested time.
              *
              * Because data is sampled every
              * 15 minutes, +/- 10 minutes gives
              * enough tolerance for small drift.
              */
+
             JOIN LATERAL (
 
               SELECT
@@ -854,14 +1089,59 @@ app.get("/api/history/daily", async (req, res) => {
             allDays,
             time,
             timezone,
-            days
+            days,
+            weekday
           ]
         );
+        
+/*
+        const points =
+        result.rows.map(
+          row => ({
+
+            date:
+              row.local_date,
+
+            targetTimestamp:
+              row.target_timestamp, 
+
+            sampledAt:
+              row.sampled_at,
+
+            numberOfGames:
+              row.number_of_games ===
+              null
+                ? null
+                : Number(
+                    row.number_of_games
+                  ),
+
+            totalConcurrentPlayers:
+              row.total_concurrent_players ===
+              null
+                ? null
+                : Number(
+                    row.total_concurrent_players
+                  )
+          })
+        );
+        */
 
 
       res.json({
 
         time,
+
+         weekday,
+
+         weekdayName:
+             weekday === "all"
+      ? "All Days"
+      : weekdayNames[
+          Number(
+            weekday
+          )
+        ],
 
         timezone,
 
@@ -871,10 +1151,10 @@ app.get("/api/history/daily", async (req, res) => {
             : days,
 
         pointCount:
-          result.rows.length,
+        result.rows.length,
 
         points:
-          result.rows.map(
+        result.rows.map(
             row => ({
 
               date:
